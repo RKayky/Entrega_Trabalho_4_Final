@@ -1,9 +1,26 @@
 const mongoose = require('mongoose');
+
 const userSchema = new mongoose.Schema({
-  nome: { type: String, required: true },
-  email: { type: String, required: true, unique: true }, // Identificador único
+  nome: { 
+    type: String, 
+    required: true 
+  },
+  email: { // Adicionamos o e-mail como campo único
+    type: String, 
+    required: true,
+    unique: true // <-- ESSENCIAL PARA O REGISTRO
+  },
+  password: { // Campo para armazenar o HASH da senha
+    type: String, 
+    required: true 
+  },
   cargo: String,
-  password: { type: String, required: true }, 
-  criadoEm: { type: Date, default: Date.now }
+  criadoEm: {
+    type: Date,
+    default: Date.now
+  }
 });
-module.exports = mongoose.model('User', userSchema);
+
+const User = mongoose.model('User', userSchema);
+
+module.exports = User;
