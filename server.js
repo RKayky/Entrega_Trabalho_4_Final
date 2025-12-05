@@ -1,63 +1,70 @@
+// 1. Carregar o cofre de senhas (Tarefa 3B)
+require('dotenv').config();
+
 const express = require('express');
-const session = require('express-session'); 
-const mongoose = require('mongoose'); 
-const userController = require('./controllers/userController');
-const isAuth = require('./middleware/auth'); // Importa o segurança
-const authController = require('./controllers/authController');
 const app = express();
+const mongoose = require('mongoose');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+const flash = require('connect-flash');
+// Importa o arquivo de rotas que criamos no Passo 1
+const routes = require('./routes');
+const path = require('path');
 
-app.set('view engine', 'ejs');
-app.set('views', './views');
+// --- DEFESAS DE SEGURANÇA (Trabalho 4) ---
+const helmet = require('helmet'); // Tarefa 3A
+const csrf = require('csurf');    // Tarefa 4A
+// ------------------------------------------
 
-// [CRUCIAL] Middleware para ler dados de formulários (req.body)
+// 2. Ativar Helmet (Cabeçalhos Seguros)
+app.use(helmet());
+
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.static(path.resolve(__dirname, 'public')));
 
-
-// Configuração do Middleware de Sessão
-app.use(session({
-    secret: 'segredo-do-capitao-black', 
-    resave: false, 
-    saveUninitialized: false, 
-    cookie: { secure: false } 
-}));
-
-
-// 2. Conectar ao MongoDB (Substitua pela SUA string de conexão)
-mongoose.connect('mongodb://127.0.0.1:27017/arquiteturaWeb')
-  .then(() => console.log('🔥 Conectado ao MongoDB!'))
-  .catch(err => console.error('Erro ao conectar no Mongo:', err));
-
-
-// --- ROTAS PÚBLICAS (LOGIN/LOGOUT/REGISTRO) ---
-
-// Rota de Login (Passa query params de erro/sucesso para a view)
-app.get('/login', (req, res) => {
-    res.render('login', { erro: req.query.erro, sucesso: req.query.sucesso });
+// Configuração da Sessão
+const sessionOptions = session({
+  secret: process.env.SESSION_SECRET, // Lê do arquivo .env
+  store: MongoStore.create({ mongoUrl: process.env.CONNECTIONSTRING }), // Lê do .env
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+    httpOnly: true
+  }
 });
-app.post('/login', authController.login);
-app.get('/logout', authController.logout);
+app.use(sessionOptions);
+app.use(flash());
 
-// Rotas de REGISTRO PÚBLICO
-app.get('/register', authController.getRegisterForm);
-app.post('/register', authController.registerUser);
+// 3. Ativar CSRF (Depois da sessão, antes das rotas)
+app.use(csrf());
 
+// Middleware Global (Injeta o Token em todas as páginas)
+app.use((req, res, next) => {
+  res.locals.errors = req.flash('errors');
+  res.locals.success = req.flash('success');
+  res.locals.user = req.session.user;
+  res.locals.csrfToken = req.csrfToken(); // <--- OBRIGATÓRIO PARA OS FORMS
+  next();
+});
 
-// --- ROTAS PROTEGIDAS (CRUD) ---
-app.get('/', (req, res) => res.redirect('/users'));
+app.set('views', path.resolve(__dirname, 'views'));
+app.set('view engine', 'ejs');
 
-app.get('/users', isAuth, userController.getAllUsers);
-app.get('/users/new', isAuth, userController.getNewUserForm);
+// Usar as nossas rotas
+app.use(routes);
 
-// **Atenção:** A rota antiga de criação (app.post('/users', ...)) foi removida ou adaptada
-// para evitar o TypeError, pois a criação pública está em /register.
-// Se precisar de criação por Admin, mapeie para uma nova função adminCreateUser.
+// Conectar ao Banco
+mongoose.connect(process.env.CONNECTIONSTRING)
+  .then(() => {
+    app.emit('pronto');
+  })
+  .catch(e => console.log(e));
 
-// Rota para DELETAR
-app.post('/users/delete/:id', isAuth, userController.deleteUser);
-
-// Rotas para EDITAR
-app.get('/users/edit/:id', isAuth, userController.getEditUserForm);
-app.post('/users/update/:id', isAuth, userController.updateUser);
-
-
-app.listen(3000, () => console.log('Servidor rodando na porta 3000'));
+app.on('pronto', () => {
+  app.listen(3000, () => {
+    console.log('Acessar http://localhost:3000');
+    console.log('Servidor executando na porta 3000');
+  });
+});
