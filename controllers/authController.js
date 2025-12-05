@@ -1,11 +1,11 @@
 // controllers/authController.js
 
 const User = require('../models/User');
-// AJUSTE 1: Usar 'bcryptjs' que é mais compatível e você já instalou
+
 const bcrypt = require('bcryptjs'); 
 
 // --- Lógica para Renderizar a Tela de Login (GET) ---
-// AJUSTE 2: Criar a função 'index' que o routes.js está chamando
+
 const index = (req, res) => {
     if (req.session.userId) {
         return res.redirect('/users');
